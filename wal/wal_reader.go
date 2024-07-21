@@ -23,87 +23,93 @@ func NewWalReader(filePath string) (*WalReader, error) {
 	}
 	return &WalReader{filePath: filePath, wal: fp}, nil
 }
-func (w *WalReader) RestoreToMemTable(table memtable.MemTable) error {
-	defer func() {
-		_, _ = w.wal.Seek(0, io.SeekStart)
-	}()
 
-	err := w.read()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 func (w *WalReader) Close() error {
 	return w.wal.Close()
 }
-func (w *WalReader) read() error {
-	w.wal.Seek(0, io.SeekStart)
+func (w *WalReader) read(table memtable.MemTable) error {
 	offset := 0
 	for {
-		key, value, length, err := w.reader(int64(offset))
+		key, value, length, err := w.reader(offset)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
 		}
+		if value != nil {
+			table.Put(key, value)
+		} else {
+			table.Delete(key)
+		}
 		offset += length
-		fmt.Printf("%s:%s\n", key, value)
 	}
 	return nil
 }
-
-func (w *WalReader) readAt(b []byte, off int64) (n int, err error) {
-	return w.wal.ReadAt(b, off)
-}
-func (w *WalReader) reader(off int64) ([]byte, []byte, int, error) {
-	buf := make([]byte, WalBufferSize)
-	if _, err := w.readAt(buf, off); err != nil {
+func readData(r io.ReaderAt, offset int, size int) ([]byte, []byte, int, error) {
+	var headerSize = WalBufferSize
+	if size < WalBufferSize+offset {
+		headerSize = size - offset //最后的剩余容量
+	}
+	buf := make([]byte, headerSize)
+	cnt, err := r.ReadAt(buf, int64(offset))
+	if err != nil {
 		return nil, nil, 0, err
+	}
+	if cnt == 0 {
+		return nil, nil, 0, io.EOF
 	}
 	index := crc32.Size
-	binary.BigEndian.Uint32(buf[:index])
+	// 读取并忽略 CRC 校验码
+	expectCrc32 := binary.BigEndian.Uint32(buf[:index])
+	// 解码键的大小
 	keySize, n := binary.Uvarint(buf[index:])
+	if n <= 0 {
+		return nil, nil, 0, fmt.Errorf("failed to decode key size")
+	}
 	index += n
+	// 确保读取的字节数足够处理 keySize
+	if index >= len(buf) {
+		return nil, nil, 0, fmt.Errorf("buffer too small to contain key size")
+	}
+	// 解码值的大小
 	valueSize, n := binary.Uvarint(buf[index:])
+	if n <= 0 {
+		return nil, nil, 0, fmt.Errorf("failed to decode value size")
+	}
 	index += n
-	kvBuf := make([]byte, keySize+valueSize)
 
-	if _, err := w.readAt(kvBuf, off+int64(index)); err != nil {
+	kvSize := int(keySize + valueSize)
+
+	kvBuf := make([]byte, kvSize)
+
+	// 读取键值对数据 并进行错误处理
+	cnt, err = r.ReadAt(kvBuf, int64(index+offset))
+	if err != nil {
 		return nil, nil, 0, err
 	}
-	return kvBuf[:keySize], kvBuf[keySize:], index + int(keySize+valueSize), nil
+	if cnt == 0 {
+		return nil, nil, 0, io.EOF
+	}
+	// 读取key和value
+	key, value := kvBuf[:keySize], kvBuf[keySize:]
+	buf = buf[:index]
+	buf = append(buf, key...)
+	buf = append(buf, value...)
+	// 校验crc32
+	realCrc32 := crc32.ChecksumIEEE(buf[crc32.Size:])
+	if realCrc32 != expectCrc32 {
+		return nil, nil, 0, fmt.Errorf("crc check err")
+	}
+	return kvBuf[:keySize], kvBuf[keySize:], index + kvSize, nil
 }
-
-// func reader(r io.Reader) ([]byte, []byte, error) {
-// 	buf := make([]byte, WalBufferSize)
-// 	readCnt, err := r.Read(buf)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	if readCnt == 0 {
-// 		return nil, nil, nil
-// 	}
-// 	index := crc32.Size
-// 	binary.BigEndian.Uint32(buf[:index])
-// 	keySize, n := binary.Uvarint(buf[index:])
-// 	index += n
-// 	valueSize, n := binary.Uvarint(buf[index:])
-// 	index += n
-
-// 	start := WalBufferSize - index
-// 	remainKvSize := keySize + valueSize - uint64(start)
-// 	kvBuf := make([]byte, remainKvSize)
-
-// 	readCnt, err = r.Read(kvBuf)
-// 	if err != nil {
-// 		return nil, nil, err
-// 	}
-// 	if readCnt == 0 {
-// 		return nil, nil, nil
-// 	}
-// 	kvBuf = append(buf[index:], kvBuf...)
-// 	return kvBuf[:keySize], kvBuf[keySize:], nil
-// }
+func (w *WalReader) size() int {
+	stat, err := w.wal.Stat()
+	if err != nil {
+		panic(err)
+	}
+	return int(stat.Size())
+}
+func (w *WalReader) reader(off int) ([]byte, []byte, int, error) {
+	return readData(w.wal, off, w.size())
+}

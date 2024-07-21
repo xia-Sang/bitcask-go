@@ -25,23 +25,31 @@ func NewWalWriter(filePath string) (*WalWriter, error) {
 func (w *WalWriter) Write(key, value []byte) error {
 	return writer(w.wal, key, value)
 }
+
 func writer(w io.Writer, key, value []byte) error {
-	index := crc32.Size
-	// 实现变长存储
 	keySize := len(key)
 	valueSize := len(value)
-	buf := make([]byte, WalBufferSize+keySize+valueSize)
-	binary.PutUvarint(buf[index:], uint64(keySize))
-	index += 8
-	binary.PutUvarint(buf[index:], uint64(valueSize))
-	index += 8
+	totalSize := WalBufferSize + keySize + valueSize
+
+	buf := make([]byte, totalSize)
+	index := crc32.Size
+
+	// 存储键值对大小
+	index += binary.PutUvarint(buf[index:], uint64(keySize))
+	index += binary.PutUvarint(buf[index:], uint64(valueSize))
+
+	// 存储键和值
 	copy(buf[index:], key)
 	copy(buf[index+keySize:], value)
 
+	// 计算并存储 CRC 校验码
 	crc := crc32.ChecksumIEEE(buf[crc32.Size : index+keySize+valueSize])
+
 	binary.BigEndian.PutUint32(buf[:crc32.Size], crc)
-	if _, err := w.Write(buf); err != nil {
+	// 写入缓冲区到写入器
+	if _, err := w.Write(buf[:index+keySize+valueSize]); err != nil {
 		return err
 	}
+
 	return nil
 }
