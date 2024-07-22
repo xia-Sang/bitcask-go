@@ -23,7 +23,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// 生成一组随机整数
+// RandomInts 生成一组随机整数
 func RandomInts(n, max int) []int {
 	if n <= 0 {
 		panic("n should be greater than 0")
@@ -38,8 +38,8 @@ func RandomInts(n, max int) []int {
 	return nums
 }
 
-// 生成一组在 [min, max) 之间的随机整数
-func RrandomIntsInRange(n, min, max int) []int {
+// RandomIntsInRange 生成一组在 [min, max) 之间的随机整数
+func RandomIntsInRange(n, min, max int) []int {
 	if n <= 0 {
 		panic("n should be greater than 0")
 	}
@@ -53,7 +53,7 @@ func RrandomIntsInRange(n, min, max int) []int {
 	return nums
 }
 
-// 生成一组随机浮点数
+// RandomFloats 生成一组随机浮点数
 func RandomFloats(n int) []float64 {
 	if n <= 0 {
 		panic("n should be greater than 0")
@@ -65,7 +65,7 @@ func RandomFloats(n int) []float64 {
 	return nums
 }
 
-// 生成一组在 [min, max) 之间的随机浮点数
+// RandomFloatsInRange 生成一组在 [min, max) 之间的随机浮点数
 func RandomFloatsInRange(n int, min, max float64) []float64 {
 	if n <= 0 {
 		panic("n should be greater than 0")

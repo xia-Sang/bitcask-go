@@ -5,16 +5,26 @@ import (
 	"sort"
 )
 
+type Constructor func() MemTable
+
 type MemTable interface {
-	Put(key, value []byte)
-	Get(key []byte) ([]byte, bool)
+	Put(key []byte, value interface{})
+	Get(key []byte) (interface{}, bool)
 	Delete(key []byte)
 	Show()
 	Iterator() Iterator
+	Clear()
 }
 
 type BTreeMemTable struct {
 	btree *btree
+}
+
+// Clear implements MemTable.
+func (b *BTreeMemTable) Clear() {
+	b.btree.mu = nil
+	b.btree.root = nil
+	b.btree.size = 0
 }
 
 func (b *BTreeMemTable) NewBTreeMemTableIter() Iterator {
@@ -43,14 +53,14 @@ func (b *BTreeMemTable) Iterator() Iterator {
 	}
 }
 
-func (b *BTreeMemTable) Put(key, value []byte) {
+func (b *BTreeMemTable) Put(key []byte, value interface{}) {
 	b.btree.Put(newData(key, value))
 }
 
-func (b *BTreeMemTable) Get(key []byte) ([]byte, bool) {
+func (b *BTreeMemTable) Get(key []byte) (interface{}, bool) {
 	ans := newData(key, nil)
 	ok := b.btree.Get(ans)
-	return ans.value, ok
+	return ans.value, ok && ans.value != nil
 }
 
 func (b *BTreeMemTable) Delete(key []byte) {
@@ -68,7 +78,7 @@ type Iterator interface {
 	Next()
 	Valid() bool
 	Seek([]byte)
-	Curr() ([]byte, []byte)
+	Curr() ([]byte, interface{})
 }
 type BTreeMemTableIter struct {
 	list     []*data
@@ -91,6 +101,6 @@ func (i *BTreeMemTableIter) Seek(key []byte) {
 		return bytes.Compare(i.list[j].key, key) >= 0
 	})
 }
-func (i *BTreeMemTableIter) Curr() ([]byte, []byte) {
+func (i *BTreeMemTableIter) Curr() ([]byte, interface{}) {
 	return i.list[i.curIndex].key, i.list[i.curIndex].value
 }
