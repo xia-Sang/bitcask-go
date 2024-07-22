@@ -8,19 +8,18 @@ import (
 type Constructor func() MemTable
 
 type MemTable interface {
-	Put(key []byte, value interface{})
-	Get(key []byte) (interface{}, bool)
-	Delete(key []byte)
-	Show()
-	Iterator() Iterator
-	Clear()
+	Put(key []byte, value interface{})  //存放数据
+	Get(key []byte) (interface{}, bool) //获取数据
+	Delete(key []byte)                  //删除数据
+	Show()                              //数据展示 测试使用
+	Iterator() Iterator                 //迭代器功能
+	Clear()                             //数据清空
 }
 
 type BTreeMemTable struct {
 	btree *btree
 }
 
-// Clear implements MemTable.
 func (b *BTreeMemTable) Clear() {
 	b.btree.mu = nil
 	b.btree.root = nil
