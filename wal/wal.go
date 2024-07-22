@@ -46,13 +46,22 @@ func NewWal(dirPath string, fileId int) (*Wal, error) {
 	}
 	return &Wal{FileId: fileId, wal: fp, dirPath: dirPath}, nil
 }
-func (w *Wal) SetOffset(offset int) error {
-	_, err := w.wal.Seek(int64(offset), os.SEEK_SET)
-	if err != nil {
-		return err
+func TestWal() (*Wal, error) {
+	dirPath := "./test"
+	fileId := 1
+	filePath := path.Join(dirPath, GetWalPath(fileId))
+	if _, err := os.Stat(filePath); err != nil {
+		if err := os.Mkdir(dirPath, os.ModePerm); err != nil {
+			return nil, err
+		}
 	}
-	return nil
+	fp, err := os.OpenFile(filePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	return &Wal{FileId: fileId, wal: fp, dirPath: dirPath}, nil
 }
+
 func (w *Wal) Write(key, value []byte) (*Pos, error) {
 	length, err := write(w.wal, key, value)
 	if err != nil {
