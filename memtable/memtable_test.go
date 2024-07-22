@@ -10,7 +10,7 @@ import (
 // 随机写入数据
 func TestMemTable(t *testing.T) {
 	memTable := NewBTreeMemTable()
-	for _, i := range utils.RrandomIntsInRange(12, 0, 100) {
+	for _, i := range utils.RandomIntsInRange(12, 0, 100) {
 		key, value := utils.GenerateKey(i), utils.GenerateRandomBytes(12)
 		memTable.Put(key, value)
 	}
@@ -72,7 +72,7 @@ func TestMemTableWriter1(t *testing.T) {
 // 测试删除功能
 func TestMemTableDelete(t *testing.T) {
 	memTable := NewBTreeMemTable()
-	ls := utils.RrandomIntsInRange(12, 0, 100)
+	ls := utils.RandomIntsInRange(12, 0, 100)
 	for _, i := range ls {
 		key, value := utils.GenerateKey(i), utils.GenerateRandomBytes(12)
 		memTable.Put(key, value)

@@ -14,11 +14,11 @@ import (
 // 已经达到学习要求了
 type data struct {
 	key     []byte
-	value   []byte
+	value   interface{}
 	deleted bool
 }
 
-func newData(key []byte, value []byte) *data {
+func newData(key []byte, value interface{}) *data {
 	return &data{key, value, false}
 }
 func (i *data) info() string {
@@ -36,6 +36,7 @@ func (dt *DataItem) showInfo() (ans string) {
 
 func (dt DataItem) changeData(index int, item *data) {
 	dt[index].value = item.value
+	dt[index].deleted = item.deleted
 }
 
 func (dt DataItem) search(data *data) (int, bool) {
@@ -71,7 +72,7 @@ type btree struct {
 	root  *btreeNode
 	order int
 	size  int
-	mu    sync.RWMutex // 读写互斥锁
+	mu    *sync.RWMutex // 读写互斥锁
 }
 
 // 这部分存在差异 但并不影响
@@ -136,6 +137,10 @@ func (bt *btree) Get(item *data) bool {
 	defer bt.mu.RUnlock()
 
 	node, index, ok := bt.search(bt.root, item)
+	if ok && !node.entries[index].deleted {
+		item.value = node.entries[index].value
+	}
+	//对于数据进行查找处理
 	return ok && !node.entries[index].deleted
 }
 func (bt *btree) insertLeaf(node *btreeNode, item *data) bool {
@@ -225,7 +230,7 @@ func (bt *btree) insert(node *btreeNode, item *data) bool {
 	return bt.insertInnner(node, item)
 }
 func NewBTree(order int) *btree {
-	return &btree{order: max(order, 3)}
+	return &btree{order: max(order, 3), mu: &sync.RWMutex{}}
 }
 
 func (bt *btree) PrintTree() {
