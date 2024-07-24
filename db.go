@@ -19,7 +19,36 @@ type Db struct {
 	memTable    memtable.MemTable
 	mu          *sync.RWMutex
 }
+type Data struct {
+	Key   []byte
+	Value []byte
+}
 
+func (db *Db) ListKeys() (ans []*Data) {
+	for iter := db.memTable.Iterator(); iter.Valid(); iter.Next() {
+		key, pos := iter.Curr()
+		val := db.getValueByPos(pos.(*wal.Pos))
+		if !bytes.Equal(val, []byte("")) {
+			ans = append(ans, &Data{Key: key, Value: val})
+		}
+	}
+	return
+}
+func (db *Db) Fold(fn func(key, value []byte) bool) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	for iter := db.memTable.Iterator(); iter.Valid(); iter.Next() {
+		key, pos := iter.Curr()
+		val := db.getValueByPos(pos.(*wal.Pos))
+		if !bytes.Equal(val, []byte("")) {
+			if !fn(key, val) {
+				break
+			}
+		}
+	}
+	return nil
+}
 func (db *Db) newActiveFile() error {
 	var fileId int
 	if db.activeFiles != nil {
@@ -111,7 +140,6 @@ func (db *Db) Put(key []byte, value []byte) error {
 func (db *Db) Delete(key []byte) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-
 	_, err := db.activeFiles.Write(key, nil)
 	if err != nil {
 		return err
