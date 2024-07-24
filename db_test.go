@@ -18,10 +18,13 @@ func TestNew(t *testing.T) {
 		//	t.Log(err)
 		//}
 	}
-	for i := range 12 {
-		key := utils.GenerateKey(i)
-		val, ok := db.Get(key)
-		t.Log(string(key), string(val), ok)
+	// for i := range 12 {
+	// 	key := utils.GenerateKey(i)
+	// 	val, ok := db.Get(key)
+	// 	t.Log(string(key), string(val), ok)
+	// }
+	for _, v := range db.ListKeys() {
+		fmt.Printf("(%s:%s)\n", v.Key, v.Value)
 	}
 }
 func TestNew1(t *testing.T) {
